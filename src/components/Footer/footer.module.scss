@@ -1,0 +1,145 @@
+.footer {
+    background-color: #1c1c25 !important;
+    color: var(--btnText);
+    float: left;
+    padding-top: 70px;
+    width: 100%;
+    height: auto;
+    margin-top: 100px;
+}
+
+.btop {
+    border-top: 1px solid #E5E5E5;
+    margin-bottom: 50px;
+}
+
+.bbottom {
+    border-top: 1px solid dimgray;
+    margin-top: 50px;
+}
+
+.dfooter {
+    margin: 0 auto;
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 1200px;
+
+    a {
+        text-decoration: none;
+        transition: opacity 0.2s ease;
+
+        &:hover {
+            opacity: 0.7;
+        }
+    }
+
+    p {
+        font-size: 16px;
+        color: white;
+        cursor: pointer;
+        font-weight: 500;
+        margin-bottom: 10px;
+        font-family: "Manrope", sans-serif !important;
+    }
+}
+
+.footer .h5 {
+    font-family: var(--fontSemibold);
+    color: white;
+    font-size: 22px;
+    margin-bottom: 0;
+    text-align: left;
+    margin-top: 0;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+
+.footer ul {
+    padding: 0;
+    margin: 0;
+    color: var(--btnText);
+}
+
+.footer ul li {
+    list-style: none;
+    font-size: 17px;
+    line-height: 34px;
+    cursor: pointer;
+
+}
+
+.copyright {
+    // color: var(--primaryTextcolor);
+    text-align: center;
+    font-family: system-ui !important;
+    padding: 20px 0;
+    font-size: var(--textLg);
+    margin-bottom: 10px;
+    color: white;
+    font-size: 12px !important;
+}
+
+.socialIcons {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+
+    a {
+        transition: transform 0.2s ease;
+        color: white;
+
+        &:hover {
+            transform: scale(1.1);
+            opacity: 1;
+        }
+
+        // Instagram gradient
+        &:nth-child(1) {
+            svg {
+                color: #E1306C;
+                filter: drop-shadow(0 0 2px rgba(225, 48, 108, 0.5));
+            }
+
+            &:hover svg {
+                background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                filter: drop-shadow(0 0 4px rgba(225, 48, 108, 0.7));
+            }
+        }
+
+        // YouTube red
+        &:nth-child(2) {
+            svg {
+                color: #FF0000;
+                filter: drop-shadow(0 0 2px rgba(255, 0, 0, 0.5));
+            }
+
+            &:hover svg {
+                filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.7));
+            }
+        }
+    }
+}
+
+
+@media (max-width: 768px) {
+
+    .footer{
+        margin-top: 50px;
+    }
+
+    .dfooter {
+        gap: 2rem;
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: 1fr 1fr;
+        padding-left: 14px;
+        padding-right: 14px;
+
+        p {
+            font-size: 15px;
+        }
+    }
+}
