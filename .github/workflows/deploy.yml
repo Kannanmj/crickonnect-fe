@@ -1,4 +1,3 @@
-
 name: Deploy Frontend to Production
 
 on:
@@ -20,21 +19,50 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # --------------------
+      # Checkout
+      # --------------------
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
 
+      # --------------------
+      # Install & Build
+      # --------------------
       - name: Install Dependencies
         run: npm install
 
       - name: Build App
         run: npm run build
-        
-      ######################### 
-      # FIXED OIDC DEBUG TEST #
-      #########################
+
+      # --------------------
+      # Detect Build Folder
+      # --------------------
+      - name: Detect build output folder
+        id: detect_build
+        run: |
+          echo "🔍 Detecting build output folder..."
+
+          if [ -d "dist" ]; then
+            BUILD_DIR="dist"
+          elif [ -d "build" ]; then
+            BUILD_DIR="build"
+          elif [ -d "out" ]; then
+            BUILD_DIR="out"
+          else
+            echo "❌ No build directory found!"
+            echo "Contents of repo:"
+            ls -la
+            exit 1
+          fi
+
+          echo "✅ Build directory detected: $BUILD_DIR"
+          echo "build_dir=$BUILD_DIR" >> $GITHUB_OUTPUT
+
+      # --------------------
+      # OIDC Debug (Safe)
+      # --------------------
       - name: Debug AWS OIDC Token (one-liner)
         run: |
           curl -s \
@@ -44,77 +72,87 @@ jobs:
           | cut -d '.' -f2 \
           | base64 --decode \
           | jq '.'
-      # #########################
-      # # 🔍 DEBUG TOKEN CLAIMS #
-      # #########################
-      # - name: Debug OIDC Token Claims
-      #   run: |
-      #     set -e
-      #     echo "Requesting OIDC Token ..."
-      #     TOKEN=$(curl -s --request POST \
-      #       --url $ACTIONS_ID_TOKEN_REQUEST_URL \
-      #       --header "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-      #       | jq -r '.value')
 
-      #     echo "🔹 Decoded Token Claims (Look for 'sub'):"
-      #     echo "$TOKEN" | jq -R 'split(".") | .[1] | @base64d | fromjson'
-
+      # --------------------
+      # Configure AWS
+      # --------------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::326148035143:role/github-deploy-role
           aws-region: ap-south-1
-          audience: sts.amazonaws.com   # <-- IMPORTANT
+          audience: sts.amazonaws.com
 
+      # --------------------
+      # Validate S3 Bucket
+      # --------------------
       - name: Validate S3 Bucket
         run: |
           BUCKET="${{ github.event.inputs.bucket_name }}"
           echo "Validating bucket: $BUCKET"
           if ! aws s3 ls "s3://$BUCKET" >/dev/null 2>&1; then
-            echo "Error: Bucket $BUCKET does not exist!"
+            echo "❌ Bucket $BUCKET does not exist"
             exit 1
           fi
 
+      # --------------------
+      # Install jq
+      # --------------------
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # --------------------
+      # Fetch CloudFront ID
+      # --------------------
       - name: Fetch CloudFront ID from config.json if not provided
         id: fetch_cf
         run: |
           BUCKET="${{ github.event.inputs.bucket_name }}"
           DISTRIBUTION_ID="${{ github.event.inputs.distribution_id }}"
+
           if [ -z "$DISTRIBUTION_ID" ]; then
-            echo "Fetching CloudFront ID from config.json for bucket: $BUCKET"
-            # Check config.json exists
+            echo "Fetching CloudFront ID from config.json..."
+
             if [ ! -f config.json ]; then
               echo "❌ config.json not found"
               exit 1
             fi
-            
-            # Validate JSON
+
             jq -e . config.json > /dev/null || {
               echo "❌ Invalid JSON in config.json"
               exit 1
             }
 
-            # Fetch distribution ID safely
             DISTRIBUTION_ID=$(jq -er --arg bucket "$BUCKET" '.[$bucket].distribution' config.json) || {
               echo "❌ No CloudFront distribution found for bucket: $BUCKET"
               exit 1
-            }  
+            }
           fi
+
           echo "✅ Using CloudFront Distribution ID: $DISTRIBUTION_ID"
           echo "distribution_id=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
 
+      # --------------------
+      # Deploy to S3
+      # --------------------
       - name: Deploy to S3 with Cache-Busting Headers
         run: |
           BUCKET="${{ github.event.inputs.bucket_name }}"
-          echo "Deploying to bucket: $BUCKET"
-          aws s3 sync ./dist s3://$BUCKET --delete --cache-control "max-age=0, no-cache, no-store, must-revalidate"
+          BUILD_DIR="${{ steps.detect_build.outputs.build_dir }}"
 
+          echo "🚀 Deploying $BUILD_DIR to bucket: $BUCKET"
+          aws s3 sync "./$BUILD_DIR" "s3://$BUCKET" \
+            --delete \
+            --cache-control "max-age=0, no-cache, no-store, must-revalidate"
+
+      # --------------------
+      # CloudFront Invalidation
+      # --------------------
       - name: Invalidate CloudFront
         if: ${{ steps.fetch_cf.outputs.distribution_id != '' }}
         run: |
           DISTRIBUTION_ID="${{ steps.fetch_cf.outputs.distribution_id }}"
-          echo "Invalidating CloudFront distribution: $DISTRIBUTION_ID"
-          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+          echo "♻️ Invalidating CloudFront distribution: $DISTRIBUTION_ID"
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
