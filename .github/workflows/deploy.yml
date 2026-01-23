@@ -37,33 +37,30 @@ jobs:
         run: npm run build
 
       # --------------------
-      # Detect Build Folder
+      # Detect Build Folder (NON-STRICT)
       # --------------------
-      - name: Detect build output folder
+      - name: Detect build output directory dynamically
         id: detect_build
         run: |
-          echo "🔍 Detecting build output folder..."
+          echo "🔍 Detecting build output directory..."
 
-          if [ -d "dist" ]; then
-            BUILD_DIR="dist"
-          elif [ -d "build" ]; then
-            BUILD_DIR="build"
-          elif [ -d "out" ]; then
-            BUILD_DIR="out"
-          else
-            echo "❌ No build directory found!"
-            echo "Contents of repo:"
-            ls -la
+          # List directories sorted by last modified time (newest first)
+          BUILD_DIR=$(ls -td */ | head -n 1 | tr -d '/')
+
+          if [ -z "$BUILD_DIR" ]; then
+            echo "❌ No directory detected"
             exit 1
           fi
 
-          echo "✅ Build directory detected: $BUILD_DIR"
+          echo "✅ Detected build directory: $BUILD_DIR"
+          ls -la "$BUILD_DIR"
+
           echo "build_dir=$BUILD_DIR" >> $GITHUB_OUTPUT
 
       # --------------------
-      # OIDC Debug (Safe)
+      # OIDC Debug (optional, safe)
       # --------------------
-      - name: Debug AWS OIDC Token (one-liner)
+      - name: Debug AWS OIDC Token
         run: |
           curl -s \
             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -135,12 +132,13 @@ jobs:
       # --------------------
       # Deploy to S3
       # --------------------
-      - name: Deploy to S3 with Cache-Busting Headers
+      - name: Deploy detected build directory to S3
         run: |
           BUCKET="${{ github.event.inputs.bucket_name }}"
           BUILD_DIR="${{ steps.detect_build.outputs.build_dir }}"
 
           echo "🚀 Deploying $BUILD_DIR to bucket: $BUCKET"
+
           aws s3 sync "./$BUILD_DIR" "s3://$BUCKET" \
             --delete \
             --cache-control "max-age=0, no-cache, no-store, must-revalidate"
